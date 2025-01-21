@@ -1,8 +1,8 @@
 # 个人代码文档
 
 打包命令:
-macOS :pyinstaller --hidden-import=plyer.platforms.macos.notification --onefile --add-data "config/tushare_config.json:config" simulate_trading_extended.py
-windows:pyinstaller --hidden-import=plyer.platforms.win.notification --onefile --add-data "config/tushare_config.json;config" simulate_trading_extended.py
+1.macOS :pyinstaller --hidden-import=plyer.platforms.macos.notification --onefile --add-data "config/tushare_config.json:config" simulate_trading_extended.py
+2.windows:pyinstaller --hidden-import=plyer.platforms.win.notification --onefile --add-data "config/tushare_config.json;config" simulate_trading_extended.py
 
 ## **注册与配置**
 
