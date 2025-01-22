@@ -99,6 +99,11 @@
       background-color: #45a049;
     }
 
+    button.loading {
+        background-color: #999 !important; /* 或者你喜欢的禁用颜色 */
+        cursor: not-allowed !important;
+    }
+
     /* “关闭表单”按钮 */
     .close-btn {
       background-color: #e74c3c !important;
@@ -240,17 +245,16 @@
           <option value="1">是</option>
         </select>
       </div>
-      <button type="submit">开始分析</button>
+      <button type="submit" id="submitBtn1">开始监听</button>
     </form>
-
-    <!-- 回测结果展示区域 -->
-    <div id="analysisResult1"></div>
-
     <!-- 实时数据卡片（初始隐藏） -->
     <div class="day-card" id="realtimeCard1" style="display: none;">
       <h3>实时数据</h3>
       <div id="realtimeOutput1" style="white-space: pre-wrap; font-size:14px;"></div>
     </div>
+    <!-- 回测结果展示区域 -->
+    <div id="analysisResult1"></div>
+
   </div>
 </div>
 
@@ -298,6 +302,13 @@
       delete pollIntervals[1];
     }
 
+      // 1) 禁用整个表单
+      disableForm(analysisForm1);
+
+      // 2) 修改按钮文字和样式
+      submitBtn1.textContent = "监听中";
+      submitBtn1.classList.add("loading");
+
     // 获取用户输入
     const ts_code = document.getElementById("ts_code1").value;
     const start_date = document.getElementById("start_date1").value;
@@ -322,6 +333,10 @@
             .then(res => res.json())
             .then(data => {
               if(data.error) {
+                  // 这里如果你想恢复表单，让用户重新修改，可重新启用
+                  enableForm(analysisForm1);
+                  submitBtn1.textContent = "开始监听";
+                  submitBtn1.classList.remove("loading");
                 // 如果后端返回了 error
                 resultContainer1.innerHTML = `<p style="color: red;">出现错误: ${data.error}</p>`;
                 // 隐藏实时数据卡片
@@ -329,6 +344,18 @@
               } else {
                 // 将日志和预测结果渲染为 day-card 样式
                 let html = "";
+
+                // 预测结果
+                if(data.prediction) {
+                  const p = data.prediction;
+                  html += `<div class="day-card">`;
+                  html += `<h3>预测结果</h3>`;
+                  html += `<p>预测开盘价: ${p.predicted_open.toFixed(2)}</p>`;
+                  html += `<p>预测最高价: ${p.predicted_high.toFixed(2)}</p>`;
+                  html += `<p>预测最低价: ${p.predicted_low.toFixed(2)}</p>`;
+                  html += `<p>预测收盘价: ${p.predicted_close.toFixed(2)}</p>`;
+                  html += `</div>`;
+                }
 
                 // 回测日志
                 if(Array.isArray(data.logs)) {
@@ -350,17 +377,7 @@
                   });
                 }
 
-                // 预测结果
-                if(data.prediction) {
-                  const p = data.prediction;
-                  html += `<div class="day-card">`;
-                  html += `<h3>预测结果</h3>`;
-                  html += `<p>预测开盘价: ${p.predicted_open.toFixed(2)}</p>`;
-                  html += `<p>预测最高价: ${p.predicted_high.toFixed(2)}</p>`;
-                  html += `<p>预测最低价: ${p.predicted_low.toFixed(2)}</p>`;
-                  html += `<p>预测收盘价: ${p.predicted_close.toFixed(2)}</p>`;
-                  html += `</div>`;
-                }
+
 
                 resultContainer1.innerHTML = html || "<p>没有回测数据</p>";
 
@@ -370,27 +387,48 @@
 
                 // 每 5 秒请求一次 /api/realtime?ts_code=xxx
                 pollIntervals[1] = setInterval(() => {
+                // pollIntervals[1] =
                   fetch(`/api/realtime?ts_code=${ts_code}`)
                           .then(r => r.json())
                           .then(rtData => {
                             if(rtData.error) {
                               realtimeOutput1.innerHTML = `<p style="color:red;">实时数据错误: ${rtData.error}</p>`;
                             } else {
-                              // 拼装显示
-                              let rtHtml = `时间: ${rtData.current_time}\n`;
-                              rtHtml += `日期: ${rtData.trade_date}\n`;
-                              rtHtml += `开: ${rtData.open.toFixed(2)}, 高: ${rtData.high.toFixed(2)},
-                  低: ${rtData.low.toFixed(2)}, 当前: ${rtData.close.toFixed(2)}\n`;
-                              rtHtml += `成交量: ${rtData.vol.toFixed(0)}, 信号: ${rtData.signal}\n`;
-                              rtHtml += `账户状态: ${formatAccountStatus(rtData.account_status)}\n`;
-                              realtimeOutput1.textContent = rtHtml;
+                              // 将数据解构出来，方便使用
+                              const {
+                                current_time,     // 形如 "16:55:11"
+                                trade_date,       // 形如 "20250116"
+                                open, high, low, close,
+                                vol,
+                                signal_message,   // "🔔 信号提示: 买入\n(002031.SZ, 当前价: 6.58)"
+                                account_status
+                              } = rtData;
+
+                              // 使用 HTML 标记来美化输出
+                              let rtHtml = "<div style=\"line-height:1.8;\">" +
+                                      "<p><strong>时间：</strong>"+ current_time +"</p>" +
+                                      "<p><strong>日期：</strong>" + trade_date +"</p>" +
+                                      "<p><strong>价格：</strong>" +
+                                      "开盘价: "+ open.toFixed(2) +
+                                      "最高价: "+ high.toFixed(2) +
+                                      "最低价: "+ low.toFixed(2) +
+                                      "当前价: "+ close.toFixed(2) +"</p>" +
+                                      "<p><strong>成交量：</strong>"+vol.toFixed(0)+"</p>" +
+                                      "<p><strong>信号：</strong><span style=\"color:#ffcc00;\">"+signal_message+"</span></p>" +
+                                      "<p><strong>账户状态：</strong>" + formatAccountStatus(account_status) +"</p></div>";
+
+                              // 注意: 如果想让字符串当作HTML解析，要用innerHTML
+                              realtimeOutput1.innerHTML = rtHtml;
                             }
                           })
                           .catch(err => {
+                              // 同理，出现网络错误也可选择恢复表单
+                              enableForm(analysisForm1);
+                              submitBtn1.textContent = "开始监听";
+                              submitBtn1.classList.remove("loading");
                             realtimeOutput1.innerHTML = `<p style="color:red;">实时请求出错: ${err}</p>`;
                           });
                 }, 5000);
-
               }
             })
             .catch(err => {
@@ -399,7 +437,19 @@
               realtimeCard1.style.display = "none";
             });
   });
+  /** 禁用整个表单里的所有元素 */
+  function disableForm(form) {
+      Array.from(form.elements).forEach(el => {
+          el.disabled = true;
+      });
+  }
 
+  /** 启用整个表单里的所有元素 */
+  function enableForm(form) {
+      Array.from(form.elements).forEach(el => {
+          el.disabled = false;
+      });
+  }
   // ============ “添加表单”按钮逻辑 =============
   addFormBtn.addEventListener("click", function() {
     formCount++;
@@ -443,15 +493,15 @@
             <option value="1">是</option>
           </select>
         </div>
-        <button type="submit">开始分析</button>
+        <button type="submit" id="submitBtn${formCount}">开始监听</button>
       </form>
-      <div id="${resultId}"></div>
-
-      <!-- 实时数据卡片，初始隐藏 -->
+       <!-- 实时数据卡片，初始隐藏 -->
       <div class="day-card" id="${realtimeCardId}" style="display: none;">
         <h3>实时数据</h3>
         <div id="${realtimeOutputId}" style="white-space: pre-wrap; font-size:14px;"></div>
       </div>
+      <div id="${resultId}"></div>
+
     `;
     newSection.innerHTML = sectionHtml;
     mainContainer.appendChild(newSection);
@@ -482,6 +532,14 @@
         delete pollIntervals[formCount];
       }
 
+        // 1) 禁用整个表单
+        disableForm(newForm);
+
+        // 2) 修改按钮文字和样式
+        const submitNew = document.getElementById("submitBtn" + formCount);
+        submitNew.textContent = "监听中";
+        submitNew.classList.add("loading");
+
       // 获取输入
       const ts_code = document.getElementById("ts_code" + formCount).value;
       const start_date = document.getElementById("start_date" + formCount).value;
@@ -506,10 +564,26 @@
               .then(res => res.json())
               .then(data => {
                 if(data.error) {
+                    // 这里如果你想恢复表单，让用户重新修改，可重新启用
+                    enableForm(newForm);
+                    const submitNew = document.getElementById("submitBtn" + formCount);
+                    submitNew.textContent = "开始监听";
+                    submitNew.classList.remove("loading");
                   newResult.innerHTML = `<p style="color: red;">出现错误: ${data.error}</p>`;
                   realtimeCard.style.display = "none";
                 } else {
                   let html = "";
+                    // 预测结果
+                    if(data.prediction) {
+                        const p = data.prediction;
+                        html += `<div class="day-card">`;
+                        html += `<h3>预测结果1</h3>`;
+                        html += `<p>预测开盘价: ${p.predicted_open.toFixed(2)}</p>`;
+                        html += `<p>预测最高价: ${p.predicted_high.toFixed(2)}</p>`;
+                        html += `<p>预测最低价: ${p.predicted_low.toFixed(2)}</p>`;
+                        html += `<p>预测收盘价: ${p.predicted_close.toFixed(2)}</p>`;
+                        html += `</div>`;
+                    }
                   // 回测日志
                   if(Array.isArray(data.logs)) {
                     data.logs.forEach(item => {
@@ -528,17 +602,7 @@
                       html += `</div>`;
                     });
                   }
-                  // 预测结果
-                  if(data.prediction) {
-                    const p = data.prediction;
-                    html += `<div class="day-card">`;
-                    html += `<h3>预测结果</h3>`;
-                    html += `<p>预测开盘价: ${p.predicted_open.toFixed(2)}</p>`;
-                    html += `<p>预测最高价: ${p.predicted_high.toFixed(2)}</p>`;
-                    html += `<p>预测最低价: ${p.predicted_low.toFixed(2)}</p>`;
-                    html += `<p>预测收盘价: ${p.predicted_close.toFixed(2)}</p>`;
-                    html += `</div>`;
-                  }
+
 
                   newResult.innerHTML = html || "<p>没有回测数据</p>";
 
@@ -553,16 +617,35 @@
                               if(rtData.error) {
                                 realtimeOutput.innerHTML = `<p style="color:red;">实时数据错误: ${rtData.error}</p>`;
                               } else {
-                                let rtHtml = `时间: ${rtData.current_time}\n`;
-                                rtHtml += `日期: ${rtData.trade_date}\n`;
-                                rtHtml += `开: ${rtData.open.toFixed(2)}, 高: ${rtData.high.toFixed(2)},
-                    低: ${rtData.low.toFixed(2)}, 当前: ${rtData.close.toFixed(2)}\n`;
-                                rtHtml += `成交量: ${rtData.vol.toFixed(0)}, 信号: ${rtData.signal}\n`;
-                                rtHtml += `账户状态: ${formatAccountStatus(rtData.account_status)}\n`;
-                                realtimeOutput.textContent = rtHtml;
+                                  const {
+                                      current_time,     // 形如 "16:55:11"
+                                      trade_date,       // 形如 "20250116"
+                                      open, high, low, close,
+                                      vol,
+                                      signal_message,   // "🔔 信号提示: 买入\n(002031.SZ, 当前价: 6.58)"
+                                      account_status
+                                  } = rtData;
+                                  let rtHtml = "<div style=\"line-height:1.8;\">" +
+                                          "<p><strong>时间：</strong>"+ current_time +"</p>" +
+                                          "<p><strong>日期：</strong>" + trade_date +"</p>" +
+                                          "<p><strong>价格：</strong>" +
+                                          "开盘价: "+ open.toFixed(2) +
+                                          "最高价: "+ high.toFixed(2) +
+                                          "最低价: "+ low.toFixed(2) +
+                                          "当前价: "+ close.toFixed(2) +"</p>" +
+                                          "<p><strong>成交量：</strong>"+vol.toFixed(0)+"</p>" +
+                                          "<p><strong>信号：</strong><span style=\"color:#ffcc00;\">"+signal_message+"</span></p>" +
+                                          "<p><strong>账户状态：</strong>" + formatAccountStatus(account_status) +"</p></div>";
+
+                                  realtimeOutput.innerHTML = rtHtml;
                               }
                             })
                             .catch(err => {
+                                // 这里如果你想恢复表单，让用户重新修改，可重新启用
+                                enableForm(newForm);
+                                const submitNew = document.getElementById("submitBtn" + formCount);
+                                submitNew.textContent = "开始监听";
+                                submitNew.classList.remove("loading");
                               realtimeOutput.innerHTML = `<p style="color:red;">实时请求出错: ${err}</p>`;
                             });
                   }, 5000);

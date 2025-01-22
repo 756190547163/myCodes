@@ -93,9 +93,8 @@ def api_realtime():
     """
     if not global_trader or not global_strategy or not global_ts_code or global_historical_data is None:
         return jsonify({"error": "请先执行 /api/analyze 进行初始化"}), 400
-
     from trading_system import get_realtime_signal
-
+    ts_code = request.args.get("ts_code")
     realtime_info = get_realtime_signal(ts_code, global_historical_data, global_trader, global_strategy)
     if realtime_info is None:
         return jsonify({"error": "无法获取实时数据"}), 400

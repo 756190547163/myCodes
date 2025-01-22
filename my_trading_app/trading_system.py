@@ -187,55 +187,16 @@ def run_backtest_and_predict(ts_code, start_date, input_year, input_money, predi
 
     return logs, prediction_result
 
-
-def get_realtime_signal(ts_code, historical_data, trader, strategy):
-    """
-    获取最新实时数据并判断买/卖/观望信号
-    返回一个字典：包含实时价、信号、账户信息等
-    """
-    realtime_data = fetch_realtime_data(ts_code)
-    if realtime_data is None or realtime_data.empty:
-        return None
-
-    latest_row = realtime_data.iloc[-1]
-    combined = pd.concat([historical_data, realtime_data], ignore_index=True)
-    strategy.data = combined
-    strategy.data = strategy.generate_signals()
-
-    latest_signal = strategy.data.iloc[-1]["signal"]
-    last_price = float(latest_row["close"])
-    if latest_signal == 1:
-        send_notification("交易信号", f"{ts_code}买入信号: 当前价格 {last_price}")
-        trader.execute_trade(latest_signal, last_price)
-    elif latest_signal == -1:
-        send_notification("交易信号", f"{ts_code}卖出信号: 当前价格 {last_price}")
-        trader.execute_trade(latest_signal, last_price)
-    else:
-        pass  # 观望
-
-    acc_stat = trader.get_account_status(last_price)  # 字典形式的账户状态
-    result = {
-        "trade_date": latest_row["trade_date"],
-        "current_time": datetime.now().strftime("%H:%M:%S"),
-        "open": float(latest_row["open"]),
-        "high": float(latest_row["high"]),
-        "low": float(latest_row["low"]),
-        "close": last_price,
-        "vol": float(latest_row["vol"]),
-        "signal": int(latest_signal),
-        "account_status": acc_stat
-    }
-    return result
 def get_signal_message(latest_signal, ts_code, last_price):
     """
     根据信号返回一个用于前端展示的文字
     """
     if latest_signal == 1:
-        return f"🔔 信号提示: 买入\n({ts_code}, 当前价: {last_price:.2f})"
+        return f"🔔 信号提示: 买入\n({ts_code}, 当前价: {last_price:.2f}) 🔔 "
     elif latest_signal == -1:
-        return f"🔔 信号提示: 卖出\n({ts_code}, 当前价: {last_price:.2f})"
+        return f"🔔 信号提示: 卖出\n({ts_code}, 当前价: {last_price:.2f}) 🔔 "
     else:
-        return "🔔 信号提示: 观望"
+        return "🔔 信号提示: 观望 🔔 "
 
 def get_realtime_signal(ts_code, historical_data, trader, strategy):
     """
